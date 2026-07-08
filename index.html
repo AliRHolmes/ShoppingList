@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-select=no">
+  <title>Smart Cloud Shopping List</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Prevent text selection when rapid tapping quantity buttons on mobile */
+    .no-select {
+      -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none;
+      user-select: none;
+    }
+    /* Custom scrollbar for categories */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen pb-24">
+
+  <!-- Main Container -->
+  <div class="max-w-md mx-auto px-4 pt-6">
+    
+    <!-- Top Header -->
+    <header class="flex justify-between items-center mb-6">
+      <div>
+        <h1 class="text-2xl font-extrabold tracking-tight text-slate-900">Groceries</h1>
+        <p class="text-xs text-slate-500" id="itemCounter">0 items remaining</p>
+      </div>
+      <!-- Sync Indicator Badge -->
+      <button id="syncBadge" class="text-xs font-semibold px-3 py-1.5 rounded-full bg-slate-200 text-slate-600 transition-all duration-300 flex items-center gap-1">
+        <span class="w-2 h-2 rounded-full bg-slate-400 animate-pulse"></span>
+        <span>Connecting...</span>
+      </button>
+    </header>
+
+    <!-- Quick Add Input Form -->
+    <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 mb-6">
+      <div class="flex gap-2 mb-3">
+        <input 
+          type="text" 
+          id="itemInput" 
+          placeholder="Add banana, milk, bread..." 
+          class="flex-1 bg-slate-100 rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all"
+          onkeydown="if(event.key === 'Enter') addItem()"
+        >
+        <button 
+          onclick="addItem()" 
+          class="bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white p-3 rounded-xl transition-all duration-150 flex items-center justify-center"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+          </svg>
+        </button>
+      </div>
+
+      <!-- Quick Category Select Slider -->
+      <label class="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-2">Select Category</label>
+      <div class="flex gap-2 overflow-x-auto no-scrollbar pb-1 no-select" id="categorySlider">
+        <!-- Generated Dynamically -->
+      </div>
+    </div>
+
+    <!-- Active List Controls -->
+    <div class="flex justify-between items-center mb-4">
+      <div class="flex gap-1 bg-slate-200/60 p-1 rounded-xl text-xs font-bold text-slate-500">
+        <button onclick="setFilter('all')" id="filter-all" class="px-3 py-1.5 rounded-lg transition-all">All</button>
+        <button onclick="setFilter('active')" id="filter-active" class="px-3 py-1.5 rounded-lg bg-white text-slate-800 shadow-sm transition-all">To Buy</button>
+        <button onclick="setFilter('checked')" id="filter-checked" class="px-3 py-1.5 rounded-lg transition-all">Bought</button>
+      </div>
+      <button 
+        onclick="confirmClearCompleted()" 
+        class="text-xs font-bold text-slate-400 hover:text-rose-500 transition-colors flex items-center gap-1"
+      >
+        <span>Clear Checked</span>
+      </button>
+    </div>
+
+    <!-- Shopping List Container -->
+    <div class="space-y-4" id="shoppingListContainer">
+      <!-- Generated Dynamically grouped by Category -->
+    </div>
+
+  </div>
+
+  <!-- Setup Instruction / Diagnostic Modal -->
+  <div class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden" id="diagModal">
+    <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-xl border border-slate-100 max-h-[85vh] overflow-y-auto">
+      <h3 class="text-lg font-bold text-slate-900 mb-2 flex items-center gap-2">
+        <span>🔧 Cloud Connection Setup</span>
+      </h3>
+      <p class="text-xs text-slate-500 mb-4 leading-relaxed">
+        This app uses Google Sheets as a database. Follow these quick steps to connect it:
+      </p>
+      <ol class="text-xs text-slate-600 space-y-2 list-decimal list-inside mb-5">
+        <li>Create a Google Spreadsheet.</li>
+        <li>Go to <strong>Extensions > Apps Script</strong>, paste the companion code, and deploy as a <strong>Web App</strong>.</li>
+        <li>Set executing to <strong>"Me"</strong> and access to <strong>"Anyone"</strong>.</li>
+        <li>Paste the Web App URL inside this HTML's <code>GOOGLE_SCRIPT_URL</code> variable (line 144).</li>
+      </ol>
+      <button 
+        onclick="closeDiagModal()" 
+        class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all"
+      >
+        Got it, thanks!
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // ⚙️ CATEGORY CONFIGURATION (Customize emojis & standard catalog aisles here)
+    const categories = [
+      { id: "produce", name: "Produce", emoji: "🥦", color: "emerald" },
+      { id: "dairy", name: "Dairy & Eggs", emoji: "🥛", color: "sky" },
+      { id: "meat", name: "Meat & Fish", emoji: "🥩", color: "rose" },
+      { id: "bakery", name: "Bakery", emoji: "🍞", color: "amber" },
+      { id: "pantry", name: "Pantry & Cans", emoji: "🥫", color: "indigo" },
+      { id: "frozen", name: "Frozen", emoji: "❄️", color: "cyan" },
+      { id: "household", name: "Household", emoji: "🧼", color: "teal" },
+      { id: "other", name: "Other Items", emoji: "🛍️", color: "slate" }
+    ];
+
+    // 🛑 PASTE YOUR DEPLOYED GOOGLE APPS SCRIPT WEB APP URL HERE:
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzKsOvrNv_UvX7cSCIm48rM4KnECow6bvFjSSZvu4rEEYpl9uWY9M9sJ4F_GdUYWZg1/exec";
+
+    // Application States
+    let shoppingList = JSON.parse(localStorage.getItem('shoppingApp_items')) || [];
+    let selectedCategory = "produce";
+    let activeFilter = "active"; // "all" | "active" | "checked"
+
+    // Load initial categories into horizontal slider
+    function initCategorySlider() {
+      const slider = document.getElementById('categorySlider');
+      slider.innerHTML = '';
+      categories.forEach(cat => {
+        const chip = document.createElement('button');
+        chip.className = `flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all border ${
+          selectedCategory === cat.id 
+          ? `bg-emerald-500 border-emerald-500 text-white shadow-sm` 
+          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+        }`;
+        chip.innerHTML = `<span>${cat.emoji}</span> <span>${cat.name}</span>`;
+        chip.onclick = () => selectCategory(cat.id);
+        slider.appendChild(chip);
+      });
+    }
+
+    function selectCategory(id) {
+      selectedCategory = id;
+      initCategorySlider();
+    }
+
+    // Refresh UI list display
+    function renderList() {
+      const container = document.getElementById('shoppingListContainer');
+      container.innerHTML = '';
+
+      // Count active items
+      const activeCount = shoppingList.filter(item => !item.checked).length;
+      document.getElementById('itemCounter').innerText = `${activeCount} items remaining`;
+
+      // Filter items according to view selection
+      let filteredItems = shoppingList;
+      if (activeFilter === "active") filteredItems = shoppingList.filter(i => !i.checked);
+      if (activeFilter === "checked") filteredItems = shoppingList.filter(i => i.checked);
+
+      if (filteredItems.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-12 px-4 bg-white rounded-2xl border border-slate-100 shadow-sm">
+            <span class="text-3xl">🛒</span>
+            <p class="text-slate-400 font-medium text-sm mt-2">Your shopping list is empty!</p>
+          </div>
+        `;
+        return;
+      }
+
+      // Group filtered items by category
+      const grouped = {};
+      categories.forEach(cat => grouped[cat.id] = []);
+      filteredItems.forEach(item => {
+        if (!grouped[item.category]) grouped[item.category] = [];
+        grouped[item.category].push(item);
+      });
+
+      // Render grouped HTML blocks
+      categories.forEach(cat => {
+        const itemsInCat = grouped[cat.id];
+        if (!itemsInCat || itemsInCat.length === 0) return;
+
+        // Category Group Container
+        const groupDiv = document.createElement('div');
+        groupDiv.className = "bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden mb-4";
+
+        // Group Header
+        const header = document.createElement('div');
+        header.className = "px-4 py-3 bg-slate-50/50 border-b border-slate-100 flex items-center justify-between";
+        header.innerHTML = `
+          <div class="flex items-center gap-1.5 font-bold text-xs text-slate-500 uppercase tracking-wide">
+            <span>${cat.emoji}</span>
+            <span>${cat.name}</span>
+          </div>
+          <span class="bg-slate-200/70 text-slate-600 px-2 py-0.5 rounded-md text-[10px] font-black">${itemsInCat.length}</span>
+        `;
+        groupDiv.appendChild(header);
+
+        // Group Body (Items list)
+        const listBody = document.createElement('div');
+        listBody.className = "divide-y divide-slate-100";
+
+        itemsInCat.forEach(item => {
+          const row = document.createElement('div');
+          row.className = `flex items-center justify-between p-4 transition-all duration-150 ${item.checked ? 'bg-slate-50/30' : ''}`;
+          
+          row.innerHTML = `
+            <div class="flex items-center gap-3 flex-1 min-w-0" onclick="toggleItem('${item.id}')">
+              <!-- Custom Touch-friendly Checkbox -->
+              <button class="w-6 h-6 rounded-lg flex items-center justify-center border-2 transition-all duration-150 ${
+                item.checked 
+                ? 'bg-emerald-500 border-emerald-500 text-white' 
+                : 'border-slate-300 hover:border-slate-400 bg-white'
+              }">
+                ${item.checked ? `
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 14.142l-7 7a1 1 0 01-1.414 0l-3.5-3.5a1 1 0 111.414-1.414L9 14.586l6.293-6.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                  </svg>
+                ` : ''}
+              </button>
+              
+              <!-- Item Text Description -->
+              <div class="truncate flex-1">
+                <span class="text-sm font-semibold tracking-tight transition-all duration-150 ${
+                  item.checked ? 'line-through text-slate-400 font-medium' : 'text-slate-800'
+                }">${item.name}</span>
+              </div>
+            </div>
+
+            <!-- Interactive Quantity Controls -->
+            <div class="flex items-center gap-2.5 no-select ml-4">
+              <button 
+                onclick="adjustQty('${item.id}', -1)" 
+                class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 active:scale-90 text-slate-600 font-black text-sm flex items-center justify-center transition-all"
+              >-</button>
+              <span class="text-sm font-extrabold text-slate-700 min-w-[16px] text-center">${item.quantity}</span>
+              <button 
+                onclick="adjustQty('${item.id}', 1)" 
+                class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 active:scale-90 text-slate-600 font-black text-sm flex items-center justify-center transition-all"
+              >+</button>
+              
+              <!-- Action Trash Button -->
+              <button 
+                onclick="deleteItem('${item.id}')" 
+                class="w-8 h-8 rounded-lg bg-slate-50 text-slate-400 hover:bg-rose-50 hover:text-rose-500 flex items-center justify-center transition-all ml-1"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            </div>
+          `;
+          listBody.appendChild(row);
+        });
+
+        groupDiv.appendChild(listBody);
+        container.appendChild(groupDiv);
+      });
+    }
+
+    // Set filter tabs
+    function setFilter(type) {
+      activeFilter = type;
+      ["all", "active", "checked"].forEach(f => {
+        const btn = document.getElementById(`filter-${f}`);
+        if (f === type) {
+          btn.className = "px-3 py-1.5 rounded-lg bg-white text-slate-800 shadow-sm transition-all";
+        } else {
+          btn.className = "px-3 py-1.5 rounded-lg transition-all text-slate-400 hover:text-slate-600";
+        }
+      });
+      renderList();
+    }
+
+    // Append items locally and trigger upload
+    function addItem() {
+      const input = document.getElementById('itemInput');
+      const val = input.value.trim();
+      if (!val) return;
+
+      const newItem = {
+        id: "id_" + Date.now() + Math.random().toString(36).substr(2, 4),
+        name: val,
+        quantity: 1,
+        category: selectedCategory,
+        checked: false
+      };
+
+      shoppingList.unshift(newItem);
+      saveToStorage();
+      renderList();
+      input.value = "";
+      
+      syncPushItem(newItem);
+    }
+
+    function toggleItem(id) {
+      const item = shoppingList.find(i => i.id === id);
+      if (item) {
+        item.checked = !item.checked;
+        saveToStorage();
+        renderList();
+        syncPushItem(item);
+      }
+    }
+
+    function adjustQty(id, delta) {
+      const item = shoppingList.find(i => i.id === id);
+      if (item) {
+        item.quantity = Math.max(1, item.quantity + delta);
+        saveToStorage();
+        renderList();
+        syncPushItem(item);
+      }
+    }
+
+    function deleteItem(id) {
+      shoppingList = shoppingList.filter(i => i.id !== id);
+      saveToStorage();
+      renderList();
+      syncDeleteItem(id);
+    }
+
+    function confirmClearCompleted() {
+      const checkedCount = shoppingList.filter(i => i.checked).length;
+      if (checkedCount === 0) return;
+      
+      shoppingList = shoppingList.filter(i => !i.checked);
+      saveToStorage();
+      renderList();
+      syncClearCompleted();
+    }
+
+    function saveToStorage() {
+      localStorage.setItem('shoppingApp_items', JSON.stringify(shoppingList));
+    }
+
+    // Cloud Synchronisation Systems
+    function updateSyncBadge(status) {
+      const badge = document.getElementById('syncBadge');
+      if (status === "syncing") {
+        badge.className = "text-xs font-semibold px-3 py-1.5 rounded-full bg-amber-100 text-amber-700 flex items-center gap-1";
+        badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-500 animate-bounce"></span><span>Syncing...</span>`;
+      } else if (status === "synced") {
+        badge.className = "text-xs font-semibold px-3 py-1.5 rounded-full bg-emerald-100 text-emerald-700 flex items-center gap-1";
+        badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500"></span><span>Connected</span>`;
+      } else if (status === "offline") {
+        badge.className = "text-xs font-semibold px-3 py-1.5 rounded-full bg-slate-200 text-slate-500 flex items-center gap-1 cursor-pointer hover:bg-slate-300";
+        badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-slate-400"></span><span>Offline / Click Config</span>`;
+        badge.onclick = openDiagModal;
+      }
+    }
+
+    async function fetchCloudList() {
+      if (!GOOGLE_SCRIPT_URL) {
+        updateSyncBadge("offline");
+        return;
+      }
+      
+      try {
+        updateSyncBadge("syncing");
+        const url = `${GOOGLE_SCRIPT_URL}?action=getItems&_cb=${Date.now()}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Network issue");
+        const cloudData = await res.json();
+        
+        if (cloudData && Array.isArray(cloudData)) {
+          shoppingList = cloudData;
+          saveToStorage();
+        }
+        updateSyncBadge("synced");
+      } catch (err) {
+        console.warn("Cloud connection offline. Reverting to local cache:", err);
+        updateSyncBadge("offline");
+      }
+      renderList();
+    }
+
+    async function syncPushItem(item) {
+      if (!GOOGLE_SCRIPT_URL) return;
+      try {
+        updateSyncBadge("syncing");
+        const url = `${GOOGLE_SCRIPT_URL}?action=upsertItem` +
+          `&id=${encodeURIComponent(item.id)}` +
+          `&name=${encodeURIComponent(item.name)}` +
+          `&quantity=${item.quantity}` +
+          `&category=${encodeURIComponent(item.category)}` +
+          `&checked=${item.checked}` +
+          `&_cb=${Date.now()}`;
+        
+        const res = await fetch(url);
+        if (!res.ok) throw new Error();
+        updateSyncBadge("synced");
+      } catch (e) {
+        updateSyncBadge("offline");
+      }
+    }
+
+    async function syncDeleteItem(id) {
+      if (!GOOGLE_SCRIPT_URL) return;
+      try {
+        updateSyncBadge("syncing");
+        const url = `${GOOGLE_SCRIPT_URL}?action=deleteItem&id=${encodeURIComponent(id)}&_cb=${Date.now()}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error();
+        updateSyncBadge("synced");
+      } catch (e) {
+        updateSyncBadge("offline");
+      }
+    }
+
+    async function syncClearCompleted() {
+      if (!GOOGLE_SCRIPT_URL) return;
+      try {
+        updateSyncBadge("syncing");
+        const url = `${GOOGLE_SCRIPT_URL}?action=clearCompleted&_cb=${Date.now()}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error();
+        updateSyncBadge("synced");
+      } catch (e) {
+        updateSyncBadge("offline");
+      }
+    }
+
+    function openDiagModal() {
+      document.getElementById('diagModal').classList.remove('hidden');
+    }
+
+    function closeDiagModal() {
+      document.getElementById('diagModal').classList.add('hidden');
+    }
+
+    // Launch App
+    initCategorySlider();
+    fetchCloudList();
+  </script>
+</body>
+</html>
