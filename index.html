@@ -157,29 +157,21 @@
       
       <!-- Modal Body (Scrollable) -->
       <div class="p-6 overflow-y-auto space-y-5 flex-1">
-        <!-- Part A: Spreadsheet URL -->
+        <!-- Part A: Spreadsheet URL Status -->
         <div class="space-y-2 pb-4 border-b border-slate-100">
           <h4 class="text-[10px] uppercase font-extrabold tracking-wider text-slate-400">Google Sheets Sync Setup</h4>
-          <div>
-            <input 
-              type="text" 
-              id="cfgScriptUrl" 
-              placeholder="https://script.google.com/macros/s/.../exec" 
-              class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono focus:ring-2 focus:ring-emerald-500 focus:bg-white focus:outline-none transition-all-custom"
-            >
+          <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
+            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Active Backend URL</p>
+            <div id="activeUrlDisplay" class="bg-slate-900 text-slate-200 rounded-lg p-2 text-[10px] font-mono break-all leading-normal select-all">
+              <!-- Dynamically populated from JS constant -->
+            </div>
           </div>
-          <div class="flex gap-2">
-            <button 
-              onclick="saveConfig()" 
-              class="flex-1 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold transition-all-custom shadow-sm cursor-pointer"
-            >
-              Save URL
-            </button>
+          <div>
             <button 
               onclick="testConnection()" 
-              class="py-2 px-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all-custom cursor-pointer"
+              class="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all-custom cursor-pointer"
             >
-              Test Ping
+              Test Connection Ping
             </button>
           </div>
           <div id="testResult" class="text-[11px] p-2.5 rounded-xl hidden font-medium leading-relaxed"></div>
@@ -254,7 +246,13 @@
   </div>
 
   <script>
-    //    // --- APP COLOR STYLING MAPS ---
+    // ==========================================
+    // ⚙️ GOOGLE SCRIPT URL CONFIGURATION (HARDCODED)
+    // Replace the empty string below with your deployed Google Script Web App URL.
+    // ==========================================
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzKsOvrNv_UvX7cSCIm48rM4KnECow6bvFjSSZvu4rEEYpl9uWY9M9sJ4F_GdUYWZg1/exec";
+
+    // --- APP COLOR STYLING MAPS ---
     const colorStyles = {
       emerald: { text: "text-emerald-700", bg: "bg-emerald-500", lightBg: "bg-emerald-50", border: "border-emerald-200", hoverBg: "hover:bg-emerald-50/70" },
       sky: { text: "text-sky-700", bg: "bg-sky-500", lightBg: "bg-sky-50", border: "border-sky-200", hoverBg: "hover:bg-sky-50/70" },
@@ -280,7 +278,7 @@
       { id: "other", name: "Other Items", emoji: "🛍️", color: "slate" }
     ];
 
-    //    // --- SMART AUTO-CLASSIFIER DICTIONARY ---
+    // --- SMART AUTO-CLASSIFIER DICTIONARY ---
     const smartKeywords = {
       produce: ["apple", "banana", "orange", "lemon", "lime", "grape", "berry", "strawberry", "blueberry", "raspberry", "melon", "tomato", "potato", "onion", "garlic", "lettuce", "salad", "broccoli", "carrot", "cucumber", "pepper", "avocado", "spinach", "fruit", "veg", "cabbage", "herb", "mushroom", "peach", "plum", "pear"],
       dairy: ["milk", "cheese", "butter", "egg", "yogurt", "cream", "margarine", "cheddar", "mozzarella", "dairy", "yog", "parmesan", "gouda", "cream-cheese"],
@@ -291,17 +289,16 @@
       household: ["soap", "shampoo", "detergent", "paper", "tissue", "wipe", "foil", "trash", "bag", "clean", "wash", "toilet", "bleach", "sponge", "foil", "spray", "toothpaste", "toothbrush"]
     };
 
-    //    // --- APPLICATION STATE ---
+    // --- APPLICATION STATE ---
     let categories = JSON.parse(localStorage.getItem('shoppingApp_categories')) || [...DEFAULT_CATEGORIES];
     let shoppingList = JSON.parse(localStorage.getItem('shoppingApp_items')) || [];
     let selectedCategory = categories[0]?.id || "produce";
     let activeFilter = "active"; // "all" | "active" | "checked"
-    let googleScriptUrl = localStorage.getItem('shoppingApp_scriptUrl') || "";
     let itemToReassignId = null; 
     let selectedAdminColor = "emerald"; // Holds admin color pick choice
 
-    // Pre-populate input configurations
-    document.getElementById('cfgScriptUrl').value = googleScriptUrl;
+    // Populate read-only backend URL on start
+    document.getElementById('activeUrlDisplay').innerText = GOOGLE_SCRIPT_URL || "[No URL Configured]";
 
     // Render static grid category selectors
     function initCategoryGrid() {
@@ -345,7 +342,7 @@
       }
     }
 
-    //    // Keyword detection scanner
+    // Keyword detection scanner
     function handleInputAutoDetect(val) {
       if (!val) {
         selectCategory(selectedCategory, false);
@@ -370,7 +367,7 @@
       }
     }
 
-    //    // Refresh list view
+    // Refresh list view
     function renderList() {
       const container = document.getElementById('shoppingListContainer');
       container.innerHTML = '';
@@ -492,7 +489,7 @@
       });
     }
 
-    //    // Popover controllers for change-on-the-fly categorization
+    // Popover controllers for change-on-the-fly categorization
     function openReassignPopover(itemId) {
       itemToReassignId = itemId;
       const popGrid = document.getElementById('popoverGrid');
@@ -529,7 +526,7 @@
       closeReassignPopover();
     }
 
-    //    // Filter toggle arrays
+    // Filter toggle arrays
     function setFilter(type) {
       activeFilter = type;
       ["all", "active", "checked"].forEach(f => {
@@ -606,11 +603,14 @@
       syncClearCompleted();
     }
 
-    // --- STREAMING_CHUNK: Setting up settings overlay control functions... ---
     // --- SETTINGS OVERLAY CONTROLLERS ---
     function openSettings() {
       document.getElementById('settingsModal').classList.remove('hidden');
-      document.getElementById('cfgScriptUrl').focus();
+    }
+
+    // Verify if URL is configured correctly
+    function isUrlConfigured() {
+      return GOOGLE_SCRIPT_URL && GOOGLE_SCRIPT_URL !== "YOUR_GOOGLE_SCRIPT_WEB_APP_URL_HERE";
     }
 
     function closeSettings() {
@@ -736,7 +736,7 @@
       syncResetCategories();
     }
 
-    //    // --- CLOUD SYNCHRONISATION OPERATIONS ---
+    // --- CLOUD SYNCHRONISATION OPERATIONS ---
     function updateSyncBadge(status, customMsg = "") {
       const dot = document.getElementById('syncDot');
       const text = document.getElementById('syncText');
@@ -753,7 +753,7 @@
       } else if (status === "setup_missing") {
         badge.className = "text-xs font-bold px-3 py-2 rounded-xl bg-rose-50 text-rose-600 border border-rose-100 flex items-center gap-2 shadow-sm cursor-pointer hover:bg-rose-100 animate-pulse";
         dot.className = "w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping";
-        text.innerText = "Setup Sync URL";
+        text.innerText = "Hardcode Sync URL";
       } else if (status === "offline") {
         badge.className = "text-xs font-bold px-3 py-2 rounded-xl bg-slate-100 text-slate-500 border border-slate-200 flex items-center gap-2 shadow-sm cursor-pointer hover:bg-slate-200";
         dot.className = "w-2.5 h-2.5 rounded-full bg-slate-400";
@@ -762,7 +762,7 @@
     }
 
     async function fetchCloudList() {
-      if (!googleScriptUrl) {
+      if (!isUrlConfigured()) {
         updateSyncBadge("setup_missing");
         return;
       }
@@ -771,7 +771,7 @@
         updateSyncBadge("syncing", "Loading DB...");
         
         // Fetch Categories First
-        const catUrl = `${googleScriptUrl}?action=getCategories&_cb=${Date.now()}`;
+        const catUrl = `${GOOGLE_SCRIPT_URL}?action=getCategories&_cb=${Date.now()}`;
         const catRes = await fetch(catUrl);
         if (catRes.ok) {
           const cloudCats = await catRes.json();
@@ -782,7 +782,7 @@
         }
         
         // Fetch shopping list items
-        const url = `${googleScriptUrl}?action=getItems&_cb=${Date.now()}`;
+        const url = `${GOOGLE_SCRIPT_URL}?action=getItems&_cb=${Date.now()}`;
         const res = await fetch(url);
         if (!res.ok) throw new Error("Invalid Response Code");
         const cloudData = await res.json();
@@ -805,10 +805,10 @@
     }
 
     async function syncPushItem(item) {
-      if (!googleScriptUrl) return;
+      if (!isUrlConfigured()) return;
       try {
         updateSyncBadge("syncing");
-        const url = `${googleScriptUrl}?action=upsertItem` +
+        const url = `${GOOGLE_SCRIPT_URL}?action=upsertItem` +
           `&id=${encodeURIComponent(item.id)}` +
           `&name=${encodeURIComponent(item.name)}` +
           `&quantity=${item.quantity}` +
@@ -825,10 +825,10 @@
     }
 
     async function syncDeleteItem(id) {
-      if (!googleScriptUrl) return;
+      if (!isUrlConfigured()) return;
       try {
         updateSyncBadge("syncing");
-        const url = `${googleScriptUrl}?action=deleteItem&id=${encodeURIComponent(id)}&_cb=${Date.now()}`;
+        const url = `${GOOGLE_SCRIPT_URL}?action=deleteItem&id=${encodeURIComponent(id)}&_cb=${Date.now()}`;
         const res = await fetch(url);
         if (!res.ok) throw new Error();
         updateSyncBadge("synced");
@@ -838,10 +838,10 @@
     }
 
     async function syncClearCompleted() {
-      if (!googleScriptUrl) return;
+      if (!isUrlConfigured()) return;
       try {
         updateSyncBadge("syncing");
-        const url = `${googleScriptUrl}?action=clearCompleted&_cb=${Date.now()}`;
+        const url = `${GOOGLE_SCRIPT_URL}?action=clearCompleted&_cb=${Date.now()}`;
         const res = await fetch(url);
         if (!res.ok) throw new Error();
         updateSyncBadge("synced");
@@ -851,10 +851,10 @@
     }
 
     async function syncPushCategory(cat) {
-      if (!googleScriptUrl) return;
+      if (!isUrlConfigured()) return;
       try {
         updateSyncBadge("syncing");
-        const url = `${googleScriptUrl}?action=upsertCategory` +
+        const url = `${GOOGLE_SCRIPT_URL}?action=upsertCategory` +
           `&id=${encodeURIComponent(cat.id)}` +
           `&name=${encodeURIComponent(cat.name)}` +
           `&emoji=${encodeURIComponent(cat.emoji)}` +
@@ -870,10 +870,10 @@
     }
 
     async function syncDeleteCategory(id) {
-      if (!googleScriptUrl) return;
+      if (!isUrlConfigured()) return;
       try {
         updateSyncBadge("syncing");
-        const url = `${googleScriptUrl}?action=deleteCategory&id=${encodeURIComponent(id)}&_cb=${Date.now()}`;
+        const url = `${GOOGLE_SCRIPT_URL}?action=deleteCategory&id=${encodeURIComponent(id)}&_cb=${Date.now()}`;
         const res = await fetch(url);
         if (!res.ok) throw new Error();
         updateSyncBadge("synced");
@@ -883,10 +883,10 @@
     }
 
     async function syncResetCategories() {
-      if (!googleScriptUrl) return;
+      if (!isUrlConfigured()) return;
       try {
         updateSyncBadge("syncing");
-        const url = `${googleScriptUrl}?action=resetCategories&_cb=${Date.now()}`;
+        const url = `${GOOGLE_SCRIPT_URL}?action=resetCategories&_cb=${Date.now()}`;
         const res = await fetch(url);
         if (!res.ok) throw new Error();
         
@@ -905,27 +905,13 @@
       localStorage.setItem('shoppingApp_items', JSON.stringify(shoppingList));
     }
 
-    function saveConfig() {
-      const urlInput = document.getElementById('cfgScriptUrl').value.trim();
-      googleScriptUrl = urlInput;
-      localStorage.setItem('shoppingApp_scriptUrl', urlInput);
-      
-      const resDiv = document.getElementById('testResult');
-      resDiv.className = "text-xs p-2.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 mt-2";
-      resDiv.innerText = "API configuration updated locally! Attempting synchronization...";
-      resDiv.classList.remove('hidden');
-
-      fetchCloudList();
-    }
-
     async function testConnection() {
-      const urlInput = document.getElementById('cfgScriptUrl').value.trim();
       const resDiv = document.getElementById('testResult');
       resDiv.classList.remove('hidden');
       
-      if (!urlInput) {
+      if (!isUrlConfigured()) {
         resDiv.className = "text-xs p-2.5 rounded-xl bg-rose-50 text-rose-800 border border-rose-200 mt-2";
-        resDiv.innerText = "Please paste a Google Script App URL before testing.";
+        resDiv.innerText = "Please open index.html and update the 'GOOGLE_SCRIPT_URL' constant with your Google Script App URL before testing.";
         return;
       }
 
@@ -933,7 +919,7 @@
       resDiv.innerText = "Sending Ping API request...";
 
       try {
-        const testUrl = `${urlInput}?action=ping&_cb=${Date.now()}`;
+        const testUrl = `${GOOGLE_SCRIPT_URL}?action=ping&_cb=${Date.now()}`;
         const res = await fetch(testUrl);
         if (!res.ok) throw new Error(`HTTP status: ${res.status}`);
         const data = await res.json();
@@ -946,7 +932,7 @@
         }
       } catch (err) {
         resDiv.className = "text-xs p-2.5 rounded-xl bg-rose-50 text-rose-800 border border-rose-200 mt-2";
-        resDiv.innerText = `Ping Failed. Check: \n1. Executing as 'Me', accessible to 'Anyone'. \n2. New version deployed. \nError: ${err.message}`;
+        resDiv.innerText = `Ping Failed. Check: \n1. Executing as 'Me', accessible to 'Anyone'. \n2. New version deployed on Google Apps Script. \nError: ${err.message}`;
       }
     }
 
@@ -961,7 +947,7 @@
       return text.replace(/[&<>"']/g, function(m) { return map[m]; });
     }
 
-    //    // --- APP STARTUP ---
+    // --- APP STARTUP ---
     initCategoryGrid();
     initColorPicker();
     renderAdminCategoryList();
