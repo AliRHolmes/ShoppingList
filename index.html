@@ -236,7 +236,7 @@
           </button>
         </div>
 
-        <!-- ⭐ Part C: Manage Weekly Staples -->
+        <!-- Part C: Manage Weekly Staples -->
         <div class="space-y-2 pb-4 border-b border-slate-100">
           <h4 class="text-[10px] uppercase font-extrabold tracking-wider text-slate-400">Manage Weekly Staples</h4>
           <div class="flex gap-2">
@@ -288,7 +288,7 @@
     </div>
   </div>
 
-  <!-- ⭐ Custom Confirmation Dialog Modal Overlay (Satisfies No-Alert/Confirm Constraint) -->
+  <!-- Custom Confirmation Dialog Modal Overlay (Satisfies No-Alert/Confirm Constraint) -->
   <div id="confirmModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-sm hidden" onclick="closeConfirmModal()">
     <div class="bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 w-full max-w-xs text-center animate-scale-in" onclick="event.stopPropagation()">
       <div class="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -311,6 +311,48 @@
           class="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all"
         >
           Yes, load
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ⭐ NEW: Edit Item Modal Overlay (Satisfies No-Alert/Confirm Constraint) -->
+  <div id="editItemModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-sm hidden" onclick="closeEditModal()">
+    <div class="bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 w-full max-w-xs text-left animate-scale-in" onclick="event.stopPropagation()">
+      <h3 class="text-sm font-extrabold text-slate-900 mb-4 flex items-center gap-2">
+        <span>✏️ Edit Item Details</span>
+      </h3>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-[10px] uppercase font-extrabold tracking-wider text-slate-400 mb-1">Item Name</label>
+          <input 
+            type="text" 
+            id="editItemName" 
+            class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          >
+        </div>
+        <div>
+          <label class="block text-[10px] uppercase font-extrabold tracking-wider text-slate-400 mb-1">Quantity</label>
+          <input 
+            type="number" 
+            id="editItemQty" 
+            min="1"
+            class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          >
+        </div>
+      </div>
+      <div class="flex gap-2 mt-6">
+        <button 
+          onclick="closeEditModal()" 
+          class="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all"
+        >
+          Cancel
+        </button>
+        <button 
+          onclick="saveEditedItem()" 
+          class="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all"
+        >
+          Save
         </button>
       </div>
     </div>
@@ -370,6 +412,7 @@
     let selectedCategory = categories[0]?.id || "produce";
     let activeFilter = "active"; // "all" | "active" | "checked"
     let itemToReassignId = null; 
+    let itemToEditId = null; // Holds the ID of the item currently being edited
     let selectedAdminColor = "emerald"; // Holds admin color pick choice
 
     // Populate read-only backend URL on start
@@ -442,7 +485,7 @@
       }
     }
 
-    // ⭐ NEW: Trigger Confirmation Overlay instead of blocking native window controls
+    // Trigger Confirmation Overlay instead of blocking native window controls
     function triggerStaplesLoadConfirmation() {
       document.getElementById('confirmModal').classList.remove('hidden');
     }
@@ -451,7 +494,7 @@
       document.getElementById('confirmModal').classList.add('hidden');
     }
 
-    // ⭐ NEW: Empty current list items and rebuild list from Staples configured dynamically
+    // Empty current list items and rebuild list from Staples configured dynamically
     async function executeLoadStaplesList() {
       closeConfirmModal();
       
@@ -506,6 +549,40 @@
       }
       
       updateSyncBadge("synced");
+    }
+
+    // ⭐ NEW: Edit Item modal overlay toggle functions
+    function openEditModal(id) {
+      const item = shoppingList.find(i => i.id === id);
+      if (!item) return;
+      itemToEditId = id;
+      document.getElementById('editItemName').value = item.name;
+      document.getElementById('editItemQty').value = item.quantity;
+      document.getElementById('editItemModal').classList.remove('hidden');
+    }
+
+    function closeEditModal() {
+      document.getElementById('editItemModal').classList.add('hidden');
+      itemToEditId = null;
+    }
+
+    function saveEditedItem() {
+      if (!itemToEditId) return;
+      const item = shoppingList.find(i => i.id === itemToEditId);
+      if (item) {
+        const newName = document.getElementById('editItemName').value.trim();
+        const newQty = parseInt(document.getElementById('editItemQty').value, 10);
+        
+        if (!newName) return;
+        
+        item.name = newName;
+        item.quantity = isNaN(newQty) || newQty < 1 ? 1 : newQty;
+        
+        saveToStorage();
+        renderList();
+        syncPushItem(item); // Push modifications directly to database
+      }
+      closeEditModal();
     }
 
     // Refresh list view
@@ -593,31 +670,42 @@
               </div>
             </div>
 
-            <!-- Quantitative controls, interactive badge, and trash -->
+            <!-- Quantitative controls, interactive badge, and actions container -->
             <div class="flex items-center gap-2 no-select ml-2">
               <!-- Reassignable category badge -->
               <button 
                 onclick="event.stopPropagation(); openReassignPopover('${item.id}')"
-                class="px-2 py-1 text-[10px] font-bold border rounded-lg flex items-center gap-1 bg-white hover:bg-slate-50 text-slate-500 border-slate-200 transition-colors mr-1"
+                class="px-2 py-1 text-[10px] font-bold border rounded-lg flex items-center gap-1 bg-white hover:bg-slate-50 text-slate-500 border-slate-200 transition-colors"
                 title="Change Category Aisle"
               >
                 <span>${cat.emoji}</span>
                 <span class="hidden xs:inline">Move</span>
               </button>
 
+              <!-- ⭐ NEW: Edit Details Pencil Button -->
               <button 
-                onclick="adjustQty('${item.id}', -1)" 
+                onclick="event.stopPropagation(); openEditModal('${item.id}')"
+                class="w-8 h-8 rounded-lg bg-slate-50 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 flex items-center justify-center transition-all"
+                title="Edit Name/Amount"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+              </button>
+
+              <button 
+                onclick="event.stopPropagation(); adjustQty('${item.id}', -1)" 
                 class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center active:scale-90 transition-all"
               >-</button>
               <span class="text-xs font-extrabold text-slate-800 min-w-[14px] text-center">${item.quantity}</span>
               <button 
-                onclick="adjustQty('${item.id}', 1)" 
+                onclick="event.stopPropagation(); adjustQty('${item.id}', 1)" 
                 class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center active:scale-90 transition-all"
               >+</button>
               
               <button 
-                onclick="deleteItem('${item.id}')" 
-                class="w-8 h-8 rounded-lg bg-slate-50 text-slate-400 hover:bg-rose-50 hover:text-rose-500 flex items-center justify-center transition-all ml-1"
+                onclick="event.stopPropagation(); deleteItem('${item.id}')" 
+                class="w-8 h-8 rounded-lg bg-slate-50 text-slate-400 hover:bg-rose-50 hover:text-rose-500 flex items-center justify-center transition-all"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -653,7 +741,7 @@
       document.getElementById('reassignPopover').classList.remove('hidden');
     }
 
-    // ⭐ Polish Weekly Staples Manager (Settings Exclusive)
+    // Polish Weekly Staples Manager (Settings Exclusive)
     function renderStaplesManager() {
       const list = document.getElementById('staplesManagerList');
       list.innerHTML = '';
