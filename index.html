@@ -887,20 +887,44 @@
       const list = document.getElementById('adminCategoryList');
       list.innerHTML = '';
 
-      categories.forEach(cat => {
+      categories.forEach((cat, index) => {
         const item = document.createElement('div');
         const colorStyle = colorStyles[cat.color] || colorStyles.slate;
+        const isFirst = index === 0;
+        const isLast = index === categories.length - 1;
         
         item.className = "flex justify-between items-center bg-white border border-slate-100 rounded-xl p-2 text-xs shadow-xs hover:border-slate-200 transition-colors";
         item.innerHTML = `
-          <div class="flex items-center gap-2">
-            <span class="text-base">${cat.emoji}</span>
-            <span class="font-bold text-slate-800">${cat.name}</span>
-            <span class="${colorStyle.lightBg} ${colorStyle.text} text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider">${cat.color}</span>
+          <div class="flex items-center gap-2 flex-1 min-w-0">
+            <!-- Order / Arrow Buttons -->
+            <div class="flex flex-col gap-0.5 mr-1 flex-shrink-0">
+              <button 
+                onclick="moveCategory('${cat.id}', -1)" 
+                ${isFirst ? 'disabled class="text-slate-200 cursor-not-allowed p-0.5"' : 'class="text-slate-400 hover:text-slate-700 hover:bg-slate-100 p-0.5 rounded transition-colors"'} 
+                title="Move Up"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
+                </svg>
+              </button>
+              <button 
+                onclick="moveCategory('${cat.id}', 1)" 
+                ${isLast ? 'disabled class="text-slate-200 cursor-not-allowed p-0.5"' : 'class="text-slate-400 hover:text-slate-700 hover:bg-slate-100 p-0.5 rounded transition-colors"'} 
+                title="Move Down"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                </svg>
+              </button>
+            </div>
+            
+            <span class="text-base flex-shrink-0">${cat.emoji}</span>
+            <span class="font-bold text-slate-800 truncate">${cat.name}</span>
+            <span class="${colorStyle.lightBg} ${colorStyle.text} text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider flex-shrink-0">${cat.color}</span>
           </div>
           <button 
             onclick="deleteCategory('${cat.id}')" 
-            class="text-rose-500 hover:bg-rose-50 p-1.5 rounded-lg transition-colors"
+            class="text-rose-500 hover:bg-rose-50 p-1.5 rounded-lg transition-colors flex-shrink-0"
             title="Delete Category"
           >
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -910,6 +934,27 @@
         `;
         list.appendChild(item);
       });
+    }
+
+    function moveCategory(catId, direction) {
+      const index = categories.findIndex(c => c.id === catId);
+      if (index === -1) return;
+      
+      const newIndex = index + direction;
+      if (newIndex < 0 || newIndex >= categories.length) return;
+      
+      // Swap positions in local array
+      const temp = categories[index];
+      categories[index] = categories[newIndex];
+      categories[newIndex] = temp;
+      
+      // Save changes immediately
+      localStorage.setItem('shoppingApp_categories', JSON.stringify(categories));
+      
+      // Refresh the entire UI elements dependent on order
+      initCategoryGrid();
+      renderAdminCategoryList();
+      renderList();
     }
 
     function addCustomCategory() {
